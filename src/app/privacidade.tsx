@@ -3,13 +3,11 @@ import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Logo } from '@/components/brand/Logo';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { privacyPolicies } from '@/features/privacy/privacy';
 import { useLanguage } from '@/i18n/LanguageProvider';
 import { useTheme } from '@/theme/ThemeProvider';
-import { spacing } from '@/theme/tokens';
 
 const GOOGLE_PRIVACY_URL = 'https://policies.google.com/privacy';
 
@@ -27,13 +25,12 @@ export default function PrivacyScreen() {
         </View>
 
         <View style={styles.hero}>
-          <Badge label={copy.badge} />
           <Text style={[styles.title, { color: colors.petroleum }]}>{copy.title}</Text>
-          <Text style={[styles.intro, { color: colors.muted }]}>{copy.intro}</Text>
           <Text style={[styles.updated, { color: colors.amberDeep }]}>{copy.updated}</Text>
+          <Text style={[styles.intro, { color: colors.muted }]}>{copy.intro}</Text>
         </View>
 
-        <Card title={copy.overviewLabel}>
+        <Card style={styles.compactCard} title={copy.overviewLabel}>
           <View style={styles.overviewList}>
             {copy.overview.map((item) => (
               <View
@@ -52,12 +49,12 @@ export default function PrivacyScreen() {
           </View>
         </Card>
 
-        <Card title={copy.noteTitle}>
+        <Card style={styles.compactCard} title={copy.noteTitle}>
           <Text style={[styles.paragraph, { color: colors.muted }]}>{copy.noteBody}</Text>
         </Card>
 
         {copy.sections.map((section) => (
-          <Card key={section.id} title={section.title}>
+          <Card key={section.id} style={styles.compactCard} title={section.title}>
             {section.body.map((paragraph) => (
               <Text key={paragraph} style={[styles.paragraph, { color: colors.muted }]}>
                 {paragraph}
@@ -90,9 +87,14 @@ export default function PrivacyScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    gap: 12,
-    padding: spacing.screen,
-    paddingBottom: 40,
+    gap: 10,
+    padding: 18,
+    paddingBottom: 34,
+  },
+  compactCard: {
+    borderRadius: 14,
+    padding: 14,
+    shadowOpacity: 0,
   },
   footer: {
     fontSize: 13,
@@ -106,13 +108,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   hero: {
-    gap: 10,
-    paddingVertical: 10,
+    gap: 8,
+    paddingVertical: 8,
   },
   intro: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    lineHeight: 23,
+    lineHeight: 21,
   },
   item: {
     fontSize: 13,
@@ -152,10 +154,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 34,
+    fontSize: 28,
     fontWeight: '900',
     letterSpacing: 0,
-    lineHeight: 37,
+    lineHeight: 32,
   },
   updated: {
     fontSize: 12,

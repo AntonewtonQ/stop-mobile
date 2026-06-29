@@ -12,6 +12,7 @@ Este projecto replica a experiencia do web em `/home/aquima/antonewton/stop`, co
 - TypeScript
 - AsyncStorage para preferencias locais
 - expo-audio para sons do jogo
+- lucide-react-native para iconografia
 - React Query como base para estado remoto
 
 ## Requisitos
@@ -109,6 +110,7 @@ Ele foi copiado do projecto web e ja e usado no componente `Logo`, no icone prin
 - Indicacao de anfitriao, comandante e estado da sala.
 - Convite por WhatsApp e partilha nativa.
 - Avatares conceituais.
+- Onboarding inicial persistido.
 - Temas persistidos.
 - Idiomas portugues, ingles e frances.
 - Sons de inicio da ronda, ultimos segundos e STOP.

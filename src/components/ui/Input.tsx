@@ -1,16 +1,25 @@
-import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import {
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  View,
+  ViewStyle,
+} from 'react-native';
 
 import { useTheme } from '@/theme/ThemeProvider';
 
 type InputProps = TextInputProps & {
+  containerStyle?: StyleProp<ViewStyle>;
   label?: string;
 };
 
-export function Input({ label, style, ...props }: InputProps) {
+export function Input({ containerStyle, label, style, ...props }: InputProps) {
   const { colors } = useTheme();
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, containerStyle]}>
       {label && <Text style={[styles.label, { color: colors.petroleum }]}>{label}</Text>}
       <TextInput
         placeholderTextColor={colors.muted}

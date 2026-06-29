@@ -3,13 +3,17 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
 import { THEME_IDS, themeLabels, themePalettes } from '@/theme/tokens';
 
-export function ThemePicker() {
+type ThemePickerProps = {
+  compact?: boolean;
+};
+
+export function ThemePicker({ compact = false }: ThemePickerProps) {
   const { colors, setThemeId, themeId } = useTheme();
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, compact && styles.compactWrapper]}>
       <Text style={[styles.label, { color: colors.petroleum }]}>Tema</Text>
-      <View style={styles.row}>
+      <View style={[styles.row, compact && styles.compactRow]}>
         {THEME_IDS.map((id) => {
           const palette = themePalettes[id];
           const selected = id === themeId;
@@ -20,22 +24,27 @@ export function ThemePicker() {
               key={id}
               onPress={() => void setThemeId(id)}
               style={[
-                styles.option,
+                compact ? styles.compactOption : styles.option,
                 {
                   backgroundColor: selected ? colors.petroleum : colors.warmWhite,
                   borderColor: selected ? colors.petroleum : colors.border,
                 },
               ]}
             >
-              <View style={styles.swatches}>
+              <View style={[styles.swatches, compact && styles.compactSwatches]}>
                 <View style={[styles.swatch, { backgroundColor: palette.petroleum }]} />
                 <View style={[styles.swatch, { backgroundColor: palette.amber }]} />
               </View>
-              <Text
-                style={[styles.optionText, { color: selected ? colors.surface : colors.petroleum }]}
-              >
-                {themeLabels[id]}
-              </Text>
+              {!compact && (
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: selected ? colors.surface : colors.petroleum },
+                  ]}
+                >
+                  {themeLabels[id]}
+                </Text>
+              )}
             </Pressable>
           );
         })}
@@ -45,6 +54,23 @@ export function ThemePicker() {
 }
 
 const styles = StyleSheet.create({
+  compactOption: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    width: 50,
+  },
+  compactRow: {
+    justifyContent: 'flex-start',
+  },
+  compactSwatches: {
+    gap: 0,
+  },
+  compactWrapper: {
+    marginTop: 14,
+  },
   label: {
     fontSize: 13,
     fontWeight: '900',

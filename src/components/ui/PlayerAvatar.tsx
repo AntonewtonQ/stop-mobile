@@ -1,3 +1,16 @@
+import {
+  Crown,
+  Flame,
+  Gamepad2,
+  Globe2,
+  Music,
+  Rocket,
+  Sparkles,
+  Sun,
+  Trophy,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { DEFAULT_AVATAR_ID, type AvatarId } from '@/features/game/avatars';
@@ -16,21 +29,30 @@ const SIZES = {
   lg: 58,
 };
 
-export const AVATAR_GLYPHS: Record<AvatarId, string> = {
-  spark: '◆',
-  rocket: '↗',
-  crown: '♛',
-  bolt: 'ϟ',
-  flame: '▲',
-  music: '♪',
-  football: '★',
-  gamepad: '▣',
-  sun: '☀',
-  globe: '◎',
+const AVATAR_ICONS: Record<AvatarId, LucideIcon> = {
+  spark: Sparkles,
+  rocket: Rocket,
+  crown: Crown,
+  bolt: Zap,
+  flame: Flame,
+  music: Music,
+  football: Trophy,
+  gamepad: Gamepad2,
+  sun: Sun,
+  globe: Globe2,
 };
 
-export function AvatarGlyph({ avatarId }: { avatarId?: AvatarId }) {
-  return AVATAR_GLYPHS[avatarId ?? DEFAULT_AVATAR_ID];
+type AvatarIconProps = {
+  avatarId?: AvatarId;
+  color: string;
+  size?: number;
+  strokeWidth?: number;
+};
+
+export function AvatarIcon({ avatarId, color, size = 20, strokeWidth = 2.8 }: AvatarIconProps) {
+  const Icon = AVATAR_ICONS[avatarId ?? DEFAULT_AVATAR_ID];
+
+  return <Icon color={color} size={size} strokeWidth={strokeWidth} />;
 }
 
 export function PlayerAvatar({ player, showName = false, size = 'md' }: PlayerAvatarProps) {
@@ -51,17 +73,11 @@ export function PlayerAvatar({ player, showName = false, size = 'md' }: PlayerAv
           },
         ]}
       >
-        <Text
-          style={[
-            styles.initials,
-            {
-              color: colors.surface,
-              fontSize: size === 'lg' ? 20 : size === 'sm' ? 12 : 15,
-            },
-          ]}
-        >
-          <AvatarGlyph avatarId={player.avatarId} />
-        </Text>
+        <AvatarIcon
+          avatarId={player.avatarId}
+          color={colors.surface}
+          size={size === 'lg' ? 27 : size === 'sm' ? 16 : 21}
+        />
         {player.isHost && <View style={[styles.hostDot, { backgroundColor: colors.amber }]} />}
       </View>
       {showName && (
@@ -87,9 +103,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: -1,
     width: 12,
-  },
-  initials: {
-    fontWeight: '900',
   },
   name: {
     fontSize: 11,

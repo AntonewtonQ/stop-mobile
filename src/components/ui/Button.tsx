@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
 
 import { useTheme } from '@/theme/ThemeProvider';
@@ -7,6 +8,7 @@ type ButtonVariant = 'primary' | 'accent' | 'outline' | 'ghost' | 'danger';
 type ButtonProps = {
   disabled?: boolean;
   fullWidth?: boolean;
+  icon?: LucideIcon;
   label: string;
   loading?: boolean;
   onPress?: () => void;
@@ -17,6 +19,7 @@ type ButtonProps = {
 export function Button({
   disabled = false,
   fullWidth = false,
+  icon: Icon,
   label,
   loading = false,
   onPress,
@@ -62,7 +65,10 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={textColor} />
       ) : (
-        <Text style={[styles.text, { color: textColor }]}>{label}</Text>
+        <>
+          {Icon && <Icon color={textColor} size={17} strokeWidth={2.8} />}
+          <Text style={[styles.text, { color: textColor }]}>{label}</Text>
+        </>
       )}
     </Pressable>
   );
@@ -73,6 +79,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 15,
     borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
     justifyContent: 'center',
     minHeight: 52,
     paddingHorizontal: 16,
@@ -82,7 +90,9 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 15,
+    flexShrink: 1,
     fontWeight: '900',
     letterSpacing: 0,
+    textAlign: 'center',
   },
 });

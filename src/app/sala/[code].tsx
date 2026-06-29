@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { MessageCircle, Share2 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -447,9 +448,15 @@ export default function RoomScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Logo compact />
-          <View style={styles.roomCodeBadge}>
-            <Text style={[styles.roomCodeLabel, { color: colors.muted }]}>SALA</Text>
-            <Text style={[styles.roomCode, { color: colors.petroleum }]}>{room.code}</Text>
+          <View style={styles.headerRight}>
+            <View style={styles.roomCodeBadge}>
+              <Text style={[styles.roomCodeLabel, { color: colors.muted }]}>SALA</Text>
+              <Text style={[styles.roomCode, { color: colors.petroleum }]}>{room.code}</Text>
+            </View>
+            <View style={styles.headerControls}>
+              <LanguageSwitcher compact />
+              <SoundToggle compact />
+            </View>
           </View>
         </View>
 
@@ -776,10 +783,11 @@ function LobbySection({
 
   return (
     <>
-      <Card subtitle={t('lobby.callBody')} title={t('lobby.title')}>
+      <Card subtitle={t('lobby.inviteBody')} title={t('lobby.inviteTitle')}>
         <View style={styles.actionRow}>
           <Button
             fullWidth
+            icon={MessageCircle}
             label={t('lobby.whatsappInvite')}
             onPress={() => void shareWhatsAppInvite()}
             style={styles.rowButton}
@@ -787,6 +795,7 @@ function LobbySection({
           />
           <Button
             fullWidth
+            icon={Share2}
             label={t('lobby.shareInvite')}
             onPress={() => void shareInvite()}
             style={styles.rowButton}
@@ -916,10 +925,6 @@ function LobbySection({
         </View>
 
         <ThemePicker />
-        <LanguageSwitcher />
-        <View style={styles.soundRow}>
-          <SoundToggle />
-        </View>
 
         {isHost && (
           <Button
@@ -1163,7 +1168,7 @@ function getStatusLabel(status: RoomStatus, t: Translate) {
 
 function getStatusTitle(status: RoomStatus, t: Translate) {
   const labels: Record<RoomStatus, string> = {
-    lobby: t('lobby.title'),
+    lobby: t('lobby.stateTitle'),
     'letter-selection': t('letter.available'),
     round: t('round.title'),
     results: t('results.title'),
@@ -1174,7 +1179,7 @@ function getStatusTitle(status: RoomStatus, t: Translate) {
 }
 
 function getRoomHint(room: Room, commander: Player | null, t: Translate) {
-  if (room.status === 'lobby') return t('lobby.callBody');
+  if (room.status === 'lobby') return t('lobby.stateHint');
   if (room.status === 'letter-selection') {
     if (commander) return t('letter.otherBody', { name: commander.name });
     return t('letter.otherNotice');
@@ -1304,7 +1309,18 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: 12,
     justifyContent: 'space-between',
+  },
+  headerControls: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerRight: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
   },
   letterButton: {
     alignItems: 'center',
@@ -1367,15 +1383,17 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   roomCode: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0,
   },
   roomCodeBadge: {
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 52,
   },
   roomCodeLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0,
   },
@@ -1453,9 +1471,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 10,
-  },
-  soundRow: {
-    marginTop: 12,
   },
   standingName: {
     flex: 1,

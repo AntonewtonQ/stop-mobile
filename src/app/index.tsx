@@ -18,7 +18,7 @@ import { AvatarPicker } from '@/components/game/AvatarPicker';
 import { LanguageSwitcher } from '@/components/game/LanguageSwitcher';
 import { SoundToggle } from '@/components/game/SoundToggle';
 import { ThemePicker } from '@/components/game/ThemePicker';
-import { Badge } from '@/components/ui/Badge';
+import { Onboarding } from '@/components/onboarding/Onboarding';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -38,8 +38,10 @@ import {
 } from '@/features/game/profile-colors';
 import type { PlayerSession } from '@/features/game/types';
 import { useLanguage } from '@/i18n/LanguageProvider';
+import { appStorage } from '@/storage/appStorage';
 import { useTheme } from '@/theme/ThemeProvider';
-import { spacing } from '@/theme/tokens';
+
+const ONBOARDING_STORAGE_KEY = 'jogastop:onboarding:v1';
 
 export default function HomeScreen() {
   const { t } = useLanguage();
@@ -49,12 +51,33 @@ export default function HomeScreen() {
   const [avatarId, setAvatarId] = useState<AvatarId>(DEFAULT_AVATAR_ID);
   const [profileColor, setProfileColor] = useState<ProfileColor>(DEFAULT_PROFILE_COLOR);
   const [recentSession, setRecentSession] = useState<PlayerSession | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [pendingAction, setPendingAction] = useState<'creating' | 'joining' | null>(null);
   const normalizedRoomCode = useMemo(() => normalizeRoomCode(roomCode), [roomCode]);
 
   useEffect(() => {
-    void readLastPlayerSession().then(setRecentSession);
+    let mounted = true;
+
+    Promise.all([readLastPlayerSession(), appStorage.getItem(ONBOARDING_STORAGE_KEY)])
+      .then(([lastSession, onboardingSeen]) => {
+        if (!mounted) return;
+        setRecentSession(lastSession);
+        setShowOnboarding(onboardingSeen !== 'done');
+      })
+      .finally(() => {
+        if (mounted) setIsBootstrapping(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
+
+  async function finishOnboarding() {
+    setShowOnboarding(false);
+    await appStorage.setItem(ONBOARDING_STORAGE_KEY, 'done');
+  }
 
   function validateName() {
     const name = playerName.trim();
@@ -118,6 +141,19 @@ export default function HomeScreen() {
     }
   }
 
+  if (isBootstrapping) {
+    return (
+      <SafeAreaView style={[styles.boot, { backgroundColor: colors.background }]}>
+        <Logo />
+        <ActivityIndicator color={colors.amber} />
+      </SafeAreaView>
+    );
+  }
+
+  if (showOnboarding) {
+    return <Onboarding onFinish={finishOnboarding} />;
+  }
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
@@ -131,19 +167,20 @@ export default function HomeScreen() {
         >
           <View style={styles.header}>
             <Logo />
-            <Badge label="AO" tone="muted" />
+            <View style={styles.headerControls}>
+              <LanguageSwitcher compact />
+              <SoundToggle compact />
+            </View>
           </View>
 
           <View style={styles.hero}>
-            <Badge label={t('landing.heroEyebrow')} />
             <Text style={[styles.title, { color: colors.petroleum }]}>
               {t('landing.heroTitle')}
               <Text style={{ color: colors.amber }}> {t('landing.heroTitleAccent')}</Text>
             </Text>
-            <Text style={[styles.lead, { color: colors.muted }]}>{t('landing.heroLead')}</Text>
           </View>
 
-          <Card>
+          <Card style={styles.entryCard}>
             {pendingAction && (
               <View style={[styles.loadingOverlay, { backgroundColor: `${colors.background}E8` }]}>
                 <ActivityIndicator color={colors.amber} />
@@ -185,11 +222,7 @@ export default function HomeScreen() {
               ))}
             </View>
 
-            <ThemePicker />
-            <LanguageSwitcher />
-            <View style={styles.soundRow}>
-              <SoundToggle />
-            </View>
+            <ThemePicker compact />
 
             <Button
               fullWidth
@@ -209,6 +242,7 @@ export default function HomeScreen() {
                     params: { code: recentSession.roomCode },
                   })
                 }
+                style={styles.resumeAction}
                 variant="outline"
               />
             )}
@@ -222,6 +256,7 @@ export default function HomeScreen() {
             <View style={styles.joinRow}>
               <Input
                 autoCapitalize="characters"
+                containerStyle={styles.joinInput}
                 editable={!pendingAction}
                 maxLength={8}
                 onChangeText={setRoomCode}
@@ -239,7 +274,7 @@ export default function HomeScreen() {
             </View>
             <Button
               fullWidth
-              label={t('landing.privacy')}
+              label={t('landing.privacyShort')}
               onPress={() => router.push('/privacidade')}
               style={styles.privacyButton}
               variant="ghost"
@@ -256,6 +291,12 @@ function getErrorMessage(error: unknown) {
 }
 
 const styles = StyleSheet.create({
+  boot: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 18,
+    justifyContent: 'center',
+  },
   codeInput: {
     minWidth: 0,
     textTransform: 'uppercase',
@@ -264,23 +305,23 @@ const styles = StyleSheet.create({
   colorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   colorOption: {
     borderRadius: 999,
-    borderWidth: 3,
-    height: 32,
-    width: 32,
+    borderWidth: 2,
+    height: 28,
+    width: 28,
   },
   content: {
-    padding: spacing.screen,
-    paddingBottom: 36,
+    padding: 18,
+    paddingBottom: 30,
   },
   divider: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 10,
-    marginVertical: 18,
+    marginVertical: 14,
   },
   dividerLine: {
     flex: 1,
@@ -290,21 +331,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
+  entryCard: {
+    borderRadius: 16,
+    padding: 14,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+  },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  headerControls: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   hero: {
-    gap: 14,
-    marginBottom: 28,
+    gap: 8,
+    marginBottom: 18,
   },
   joinButton: {
-    minWidth: 100,
+    minWidth: 104,
+  },
+  joinInput: {
+    flex: 1,
   },
   joinRow: {
-    alignItems: 'flex-end',
+    alignItems: 'center',
     flexDirection: 'row',
     gap: 10,
   },
@@ -315,16 +370,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
     letterSpacing: 0,
-    marginBottom: 8,
-    marginTop: 12,
+    marginBottom: 7,
+    marginTop: 14,
   },
   privacyButton: {
-    marginTop: 10,
+    marginTop: 6,
   },
-  lead: {
-    fontSize: 16,
-    fontWeight: '600',
-    lineHeight: 25,
+  resumeAction: {
+    marginTop: 9,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -341,16 +394,13 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  soundRow: {
-    marginTop: 12,
-  },
   title: {
-    fontSize: 42,
+    fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
-    lineHeight: 43,
+    lineHeight: 36,
   },
   topAction: {
-    marginTop: 22,
+    marginTop: 18,
   },
 });
