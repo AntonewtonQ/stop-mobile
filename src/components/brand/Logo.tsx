@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -7,9 +7,12 @@ type LogoProps = {
   light?: boolean;
 };
 
+const logoMark = require('../../../assets/brand/jogastop-logo-instagram.png');
+
 export function Logo({ compact = false, light = false }: LogoProps) {
   const { colors } = useTheme();
   const textColor = light ? colors.surface : colors.petroleum;
+  const symbolSize = compact ? 42 : 52;
 
   return (
     <View accessibilityLabel="jogastop" style={styles.logo}>
@@ -17,14 +20,14 @@ export function Logo({ compact = false, light = false }: LogoProps) {
         style={[
           styles.symbol,
           {
-            backgroundColor: light ? colors.surface : colors.petroleum,
+            borderRadius: compact ? 13 : 16,
+            height: symbolSize,
             shadowColor: colors.petroleum,
+            width: symbolSize,
           },
         ]}
       >
-        <Text style={[styles.symbolLetter, { color: light ? colors.petroleum : colors.surface }]}>
-          S
-        </Text>
+        <Image resizeMode="cover" source={logoMark} style={styles.symbolImage} />
       </View>
 
       {!compact && (
@@ -44,18 +47,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   symbol: {
-    alignItems: 'center',
-    borderRadius: 14,
-    height: 44,
-    justifyContent: 'center',
+    overflow: 'hidden',
     shadowOpacity: 0.2,
     shadowRadius: 14,
-    width: 44,
   },
-  symbolLetter: {
-    fontSize: 27,
-    fontWeight: '900',
-    lineHeight: 30,
+  symbolImage: {
+    height: '100%',
+    width: '100%',
   },
   wordmark: {
     flexDirection: 'row',

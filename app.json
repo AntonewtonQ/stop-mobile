@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "scheme": "stop-mobile",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brand/jogastop-logo-instagram.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -21,7 +21,7 @@
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/brand/jogastop-logo-instagram.png"
     },
     "plugins": [
       "expo-router",
