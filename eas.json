@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 16.0.0"
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -11,10 +12,18 @@
       "android": {
         "buildType": "apk"
       },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://jogastop.ao",
+        "EXPO_PUBLIC_WEB_URL": "https://jogastop.ao"
+      },
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://jogastop.ao",
+        "EXPO_PUBLIC_WEB_URL": "https://jogastop.ao"
+      }
     }
   },
   "submit": {

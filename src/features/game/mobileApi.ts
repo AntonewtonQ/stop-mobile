@@ -14,7 +14,10 @@ export class GameApiError extends Error {
 }
 
 function getApiBaseUrl() {
-  return process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
+  return (process.env.EXPO_PUBLIC_API_URL ?? process.env.EXPO_PUBLIC_WEB_URL ?? '').replace(
+    /\/$/,
+    '',
+  );
 }
 
 function makeUrl(path: string) {
