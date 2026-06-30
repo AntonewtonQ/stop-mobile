@@ -67,6 +67,18 @@ npm run lint
 npm run format
 ```
 
+## Build Android APK
+
+Para gerar um APK de teste por EAS Internal Distribution:
+
+```bash
+npx --yes eas-cli@latest build --platform android --profile preview
+```
+
+O perfil `preview` esta configurado em `eas.json` com `android.buildType` como `apk`, entao o resultado e um ficheiro instalavel diretamente em dispositivos Android.
+
+Antes de partilhar com testers, garante que `EXPO_PUBLIC_API_URL` aponta para uma API acessivel pelo telemovel. Para testes fora da tua rede local, usa uma URL publica em vez de IP local.
+
 ## Estrutura
 
 ```text
@@ -101,7 +113,13 @@ O logotipo real do jogastop esta em:
 assets/brand/jogastop-logo-instagram.png
 ```
 
-Ele foi copiado do projecto web e ja e usado no componente `Logo`, no icone principal do Expo e no favicon web.
+Para mobile, usamos a versao recortada sem wordmark:
+
+```text
+assets/brand/jogastop-mobile-mark.png
+```
+
+Ela e usada no componente `Logo`, no icone principal do Expo e no favicon web.
 
 ## Funcionalidades portadas do web
 

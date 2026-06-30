@@ -7,7 +7,7 @@ type LogoProps = {
   light?: boolean;
 };
 
-const logoMark = require('../../../assets/brand/jogastop-logo-instagram.png');
+const logoMark = require('../../../assets/brand/jogastop-mobile-mark.png');
 
 export function Logo({ compact = false, light = false }: LogoProps) {
   const { colors } = useTheme();

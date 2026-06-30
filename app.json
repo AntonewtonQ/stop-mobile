@@ -5,33 +5,44 @@
     "version": "1.0.0",
     "scheme": "stop-mobile",
     "orientation": "portrait",
-    "icon": "./assets/brand/jogastop-logo-instagram.png",
+    "icon": "./assets/brand/jogastop-mobile-mark.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "ao.jogastop.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#062F40",
+        "foregroundImage": "./assets/brand/jogastop-mobile-mark.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/brand/jogastop-logo-instagram.png"
+      "favicon": "./assets/brand/jogastop-mobile-mark.png"
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-font",
       "expo-splash-screen",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "65bd0232-8e22-47b8-b30c-4a5aee4cc8f4"
+      }
     }
   }
 }
