@@ -24,6 +24,11 @@
         "EXPO_PUBLIC_API_URL": "https://jogastop.ao",
         "EXPO_PUBLIC_WEB_URL": "https://jogastop.ao"
       }
+    },
+    "store-test": {
+      "extends": "production",
+      "distribution": "store",
+      "environment": "production"
     }
   },
   "submit": {

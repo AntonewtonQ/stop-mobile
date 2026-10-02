@@ -5,6 +5,8 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -19,6 +21,11 @@ import { Logo } from '@/components/brand/Logo';
 import { LanguageSwitcher } from '@/components/game/LanguageSwitcher';
 import { SoundToggle } from '@/components/game/SoundToggle';
 import { ThemePicker } from '@/components/game/ThemePicker';
+import { ConnectionNotice } from '@/components/game/ConnectionNotice';
+import { AnswerVoteCard } from '@/components/game/AnswerVoteCard';
+import { RoundRecap } from '@/components/game/RoundRecap';
+import { JoinRoomGate } from '@/components/game/JoinRoomGate';
+import { RoundScreen } from '@/components/game/RoundScreen';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -26,7 +33,6 @@ import { CategoryChip } from '@/components/ui/CategoryChip';
 import { Input } from '@/components/ui/Input';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { ScoreRow } from '@/components/ui/ScoreRow';
-import { Timer } from '@/components/ui/Timer';
 import {
   CATEGORY_OPTIONS,
   MAX_CATEGORIES,
@@ -43,9 +49,7 @@ import {
   castAnswerVote,
   chooseRoundLetter,
   finishGame,
-  finishRound,
   prepareNextRound,
-  saveRoundAnswers,
   startFirstRound,
   startRematch,
   updateRoomSettings,
@@ -53,7 +57,6 @@ import {
 import { normalizeRoomCode } from '@/features/game/mobileStorage';
 import { getPlayerTotal } from '@/features/game/scoring';
 import type {
-  AnswerChallenge,
   AnswerScoreStatus,
   AnswerVote,
   Player,
@@ -61,7 +64,6 @@ import type {
   Room,
   RoomSettings,
   RoomStatus,
-  RoundAnswers,
 } from '@/features/game/types';
 import { useGameSounds } from '@/hooks/useGameSounds';
 import { useRoom, type RoomConnectionStatus } from '@/hooks/useRoom';
@@ -101,24 +103,20 @@ export default function RoomScreen() {
   const { t } = useLanguage();
   const params = useLocalSearchParams<{ code?: string }>();
   const code = normalizeRoomCode(String(params.code ?? ''));
-  const { room, session, isLoading, connectionStatus, refresh } = useRoom(code);
+  const { room, session, isLoading, connectionStatus, refresh, applyRoom } = useRoom(code);
   useGameSounds(room);
-  const [answers, setAnswers] = useState<RoundAnswers>({});
   const [customCategory, setCustomCategory] = useState('');
   const [draftCategories, setDraftCategories] = useState<string[]>([]);
   const [draftDuration, setDraftDuration] = useState<(typeof ROUND_DURATION_OPTIONS)[number]>(60);
   const [draftRounds, setDraftRounds] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lobbySaveState, setLobbySaveState] = useState<LobbySaveState>('idle');
-  const [now, setNow] = useState(Date.now());
-  const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lobbyAutosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lobbyDraftSnapshotRef = useRef('');
   const lobbyDraftTouchedRef = useRef(false);
   const lobbyLastServerSnapshotRef = useRef('');
   const lobbyRoomCodeRef = useRef('');
-  const lastAutosavedRef = useRef('');
-  const timeoutSubmittedRef = useRef(false);
+  const actionPendingRef = useRef(false);
 
   const currentPlayer = useMemo(
     () => room?.players.find((player) => player.id === session?.id) ?? null,
@@ -134,11 +132,6 @@ export default function RoomScreen() {
     if (!room?.round) return null;
     return room.players.find((player) => player.id === room.round?.commanderId) ?? null;
   }, [room]);
-  const remainingSeconds = useMemo(() => {
-    if (room?.status !== 'round' || !room.round?.startedAt) return null;
-    const deadline = room.round.startedAt + room.round.duration * 1000;
-    return Math.max(0, Math.ceil((deadline - now) / 1000));
-  }, [now, room?.round, room?.status]);
   const standings = useMemo(() => {
     if (!room) return [];
 
@@ -154,23 +147,24 @@ export default function RoomScreen() {
   const lobbyRoomSettings = room?.settings;
 
   const runAction = useCallback(
-    async (action: () => Promise<unknown>) => {
-      if (isSubmitting) return;
+    async (action: () => Promise<Room>) => {
+      if (actionPendingRef.current) return;
+      actionPendingRef.current = true;
       setIsSubmitting(true);
 
       try {
-        await action();
-        await refresh();
+        applyRoom(await action());
       } catch (error) {
         Alert.alert(
           t('error.actionUnavailable'),
           error instanceof Error ? error.message : t('error.generic'),
         );
       } finally {
+        actionPendingRef.current = false;
         setIsSubmitting(false);
       }
     },
-    [isSubmitting, refresh, t],
+    [applyRoom, t],
   );
 
   useEffect(() => {
@@ -242,7 +236,7 @@ export default function RoomScreen() {
             setLobbySaveState('dirty');
           }
 
-          return refresh();
+          applyRoom(nextRoom);
         })
         .catch(() => {
           if (lobbyDraftSnapshotRef.current === pendingSnapshot) {
@@ -261,59 +255,8 @@ export default function RoomScreen() {
     isHost,
     lobbyRoomCode,
     lobbyRoomStatus,
-    refresh,
+    applyRoom,
   ]);
-
-  useEffect(() => {
-    if (room?.status !== 'round') return;
-
-    const timer = setInterval(() => setNow(Date.now()), 1_000);
-    return () => clearInterval(timer);
-  }, [room?.status]);
-
-  useEffect(() => {
-    if (room?.status !== 'round' || !session || !room.round) return;
-
-    timeoutSubmittedRef.current = false;
-    setAnswers((current) =>
-      room.settings.categories.reduce<RoundAnswers>((draft, category) => {
-        draft[category] = current[category] ?? room.round?.answers[session.id]?.[category] ?? '';
-        return draft;
-      }, {}),
-    );
-  }, [room?.round?.number, room?.settings.categories, room?.status, session, room?.round]);
-
-  useEffect(() => {
-    if (room?.status !== 'round' || !session) return;
-    const serialized = JSON.stringify(answers);
-    if (serialized === lastAutosavedRef.current) return;
-    if (autosaveRef.current) clearTimeout(autosaveRef.current);
-
-    autosaveRef.current = setTimeout(() => {
-      lastAutosavedRef.current = serialized;
-      void saveRoundAnswers(room.code, answers).catch(() => undefined);
-    }, 800);
-
-    return () => {
-      if (autosaveRef.current) clearTimeout(autosaveRef.current);
-    };
-  }, [answers, room?.code, room?.status, session]);
-
-  useEffect(() => {
-    if (
-      room?.status !== 'round' ||
-      remainingSeconds === null ||
-      remainingSeconds > 0 ||
-      timeoutSubmittedRef.current
-    ) {
-      return;
-    }
-
-    timeoutSubmittedRef.current = true;
-    void finishRound(room.code, true, answers)
-      .then(refresh)
-      .catch(() => undefined);
-  }, [answers, refresh, remainingSeconds, room?.code, room?.status]);
 
   useEffect(() => {
     if (room?.status === 'results' && room.round?.stoppedBy) {
@@ -325,9 +268,25 @@ export default function RoomScreen() {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.amber} />
-        <Text style={[styles.loadingText, { color: colors.petroleum }]}>A carregar sala...</Text>
+        <Text style={[styles.loadingText, { color: colors.petroleum }]}>
+          {t('common.loadingRoom')}
+        </Text>
       </SafeAreaView>
     );
+  }
+
+  if (!room && connectionStatus !== 'connected') {
+    return (
+      <SafeAreaView style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Logo />
+        <ConnectionNotice status={connectionStatus} onRetry={() => void refresh()} />
+        <Button label={t('common.home')} onPress={() => router.replace('/')} variant="ghost" />
+      </SafeAreaView>
+    );
+  }
+
+  if (room?.status === 'lobby' && (!session || !currentPlayer)) {
+    return <JoinRoomGate room={room} onJoined={refresh} />;
   }
 
   if (!room || !session || !currentPlayer) {
@@ -345,9 +304,18 @@ export default function RoomScreen() {
     );
   }
 
-  const allAnswered =
-    room.status === 'round' &&
-    room.settings.categories.every((category) => answers[category]?.trim());
+  if (room.status === 'round' && room.round) {
+    return (
+      <RoundScreen
+        key={`${room.code}:${room.round.number}:${room.round.startedAt}:${session.id}`}
+        room={room}
+        session={session}
+        connectionStatus={connectionStatus}
+        applyRoom={applyRoom}
+        refresh={refresh}
+      />
+    );
+  }
   const activeRoom = room;
   const pendingChallenges =
     room.round?.result &&
@@ -415,13 +383,13 @@ export default function RoomScreen() {
         lobbyDraftSnapshotRef.current = savedSnapshot;
         lobbyDraftTouchedRef.current = false;
         setLobbySaveState('saved');
-        return refresh();
+        applyRoom(nextRoom);
       })
       .catch((error) => {
         setLobbySaveState('error');
         Alert.alert(
-          'Nao foi possivel guardar',
-          error instanceof Error ? error.message : 'Tenta novamente.',
+          t('lobby.autosaveError'),
+          error instanceof Error ? error.message : t('error.generic'),
         );
       });
   }
@@ -445,191 +413,125 @@ export default function RoomScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Logo compact />
-          <View style={styles.headerRight}>
-            <View style={styles.roomCodeBadge}>
-              <Text style={[styles.roomCodeLabel, { color: colors.muted }]}>SALA</Text>
-              <Text style={[styles.roomCode, { color: colors.petroleum }]}>{room.code}</Text>
-            </View>
-            <View style={styles.headerControls}>
-              <LanguageSwitcher compact />
-              <SoundToggle compact />
+      <KeyboardAvoidingView
+        style={styles.safeArea}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Logo compact />
+            <View style={styles.headerRight}>
+              <View style={styles.roomCodeBadge}>
+                <Text style={[styles.roomCodeLabel, { color: colors.muted }]}>
+                  {t('common.room')}
+                </Text>
+                <Text style={[styles.roomCode, { color: colors.petroleum }]}>{room.code}</Text>
+              </View>
+              <View style={styles.headerControls}>
+                <LanguageSwitcher compact />
+                <SoundToggle compact />
+              </View>
             </View>
           </View>
-        </View>
 
-        <StateHero commander={currentCommander} connectionStatus={connectionStatus} room={room} />
+          <ConnectionNotice status={connectionStatus} onRetry={() => void refresh()} />
+          <StateHero commander={currentCommander} connectionStatus={connectionStatus} room={room} />
 
-        <View style={styles.quickPlayers}>
-          {room.players.map((player) => (
-            <PlayerAvatar key={player.id} player={player} showName size="sm" />
-          ))}
-        </View>
+          {room.status === 'lobby' && (
+            <LobbySection
+              addCustomCategory={addCustomCategory}
+              customCategory={customCategory}
+              draftCategories={draftCategories}
+              draftDuration={draftDuration}
+              draftRounds={draftRounds}
+              isHost={isHost}
+              isSubmitting={isSubmitting}
+              lobbySaveState={lobbySaveState}
+              players={room.players}
+              removeCategory={removeCategory}
+              room={room}
+              saveLobbySettings={saveLobbySettings}
+              setCustomCategory={setCustomCategory}
+              setDraftDuration={(duration) => setLobbyDraftSettings({ duration })}
+              setDraftRounds={(rounds) => setLobbyDraftSettings({ rounds })}
+              shareInvite={shareInvite}
+              shareWhatsAppInvite={shareWhatsAppInvite}
+              startGame={() => runAction(() => startFirstRound(room.code))}
+              toggleCategory={toggleCategory}
+            />
+          )}
 
-        {room.status === 'lobby' && (
-          <LobbySection
-            addCustomCategory={addCustomCategory}
-            customCategory={customCategory}
-            draftCategories={draftCategories}
-            draftDuration={draftDuration}
-            draftRounds={draftRounds}
-            isHost={isHost}
-            isSubmitting={isSubmitting}
-            lobbySaveState={lobbySaveState}
-            players={room.players}
-            removeCategory={removeCategory}
-            room={room}
-            saveLobbySettings={saveLobbySettings}
-            setCustomCategory={setCustomCategory}
-            setDraftDuration={(duration) => setLobbyDraftSettings({ duration })}
-            setDraftRounds={(rounds) => setLobbyDraftSettings({ rounds })}
-            shareInvite={shareInvite}
-            shareWhatsAppInvite={shareWhatsAppInvite}
-            startGame={() => runAction(() => startFirstRound(room.code))}
-            toggleCategory={toggleCategory}
-          />
-        )}
+          {room.status === 'letter-selection' && room.round && (
+            <Card
+              subtitle={
+                isCommander
+                  ? t('letter.yourBody')
+                  : t('letter.otherBody', { name: currentCommander?.name ?? '' })
+              }
+              title={t('letter.available')}
+            >
+              <View style={styles.letterGrid}>
+                {PLAYABLE_LETTERS.map((letter) => {
+                  const disabled = !isCommander || usedLetters.has(letter) || isSubmitting;
 
-        {room.status === 'letter-selection' && room.round && (
-          <Card
-            subtitle={
-              isCommander
-                ? 'Escolhe uma letra ainda nao usada.'
-                : `A espera de ${currentCommander?.name ?? 'comandante'} escolher a letra.`
-            }
-            title="Escolha da letra"
-          >
-            <View style={styles.letterGrid}>
-              {PLAYABLE_LETTERS.map((letter) => {
-                const disabled = !isCommander || usedLetters.has(letter) || isSubmitting;
-
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={disabled}
-                    key={letter}
-                    onPress={() => runAction(() => chooseRoundLetter(room.code, letter))}
-                    style={[
-                      styles.letterButton,
-                      {
-                        backgroundColor: disabled ? colors.warmWhite : colors.petroleum,
-                        borderColor: disabled ? colors.border : colors.petroleum,
-                      },
-                    ]}
-                  >
-                    <Text
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${letter}${usedLetters.has(letter) ? `, ${t('letter.used')}` : ''}`}
+                      accessibilityState={{ disabled }}
+                      disabled={disabled}
+                      key={letter}
+                      onPress={() => runAction(() => chooseRoundLetter(room.code, letter))}
                       style={[
-                        styles.letterButtonText,
-                        { color: disabled ? colors.muted : colors.surface },
+                        styles.letterButton,
+                        {
+                          backgroundColor: disabled ? colors.warmWhite : colors.petroleum,
+                          borderColor: disabled ? colors.border : colors.petroleum,
+                        },
                       ]}
                     >
-                      {letter}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Card>
-        )}
-
-        {room.status === 'round' && room.round && (
-          <Card>
-            <View style={styles.roundHeader}>
-              <View style={styles.roundCopy}>
-                <Text style={[styles.roundKicker, { color: colors.muted }]}>
-                  Ronda {room.round.number} de {room.settings.roundsToPlay}
-                </Text>
-                <Text style={[styles.roundTitle, { color: colors.petroleum }]}>
-                  Letra {room.round.letter}
-                </Text>
-                {room.round.stoppedBy && (
-                  <Text style={[styles.statusHint, { color: colors.muted }]}>
-                    STOP por{' '}
-                    {room.players.find((player) => player.id === room.round?.stoppedBy)?.name}
-                  </Text>
-                )}
+                      <Text
+                        style={[
+                          styles.letterButtonText,
+                          { color: disabled ? colors.muted : colors.surface },
+                        ]}
+                      >
+                        {letter}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-              <View style={[styles.bigLetter, { backgroundColor: colors.petroleum }]}>
-                <Text style={[styles.bigLetterText, { color: colors.surface }]}>
-                  {room.round.letter}
-                </Text>
-              </View>
-            </View>
+            </Card>
+          )}
 
-            <Timer
-              duration={room.round.duration}
-              remaining={remainingSeconds ?? room.round.duration}
+          {(room.status === 'results' || room.status === 'finished') && room.round?.result && (
+            <ResultsSection
+              castVote={(challengeId, vote) =>
+                runAction(() => castAnswerVote(room.code, challengeId, vote))
+              }
+              finishCurrentGame={() => runAction(() => finishGame(room.code))}
+              isHost={isHost}
+              isSubmitting={isSubmitting}
+              prepareNext={() => runAction(() => prepareNextRound(room.code))}
+              room={room}
+              sessionId={session.id}
+              standings={standings}
+              startCurrentRematch={() => runAction(() => startRematch(room.code))}
             />
+          )}
 
-            <View style={styles.answerProgress}>
-              <Text style={[styles.progressText, { color: colors.muted }]}>
-                {Object.values(answers).filter((value) => value.trim()).length}/
-                {room.settings.categories.length} respostas
-              </Text>
-              <Text style={[styles.progressText, { color: colors.muted }]}>Autosave activo</Text>
-            </View>
-
-            {room.settings.categories.map((category) => (
-              <Input
-                autoCapitalize="words"
-                editable={!isSubmitting}
-                key={category}
-                label={category}
-                onChangeText={(value) =>
-                  setAnswers((current) => ({ ...current, [category]: value }))
-                }
-                placeholder={`${category} com ${room.round?.letter}`}
-                value={answers[category] ?? ''}
-              />
-            ))}
-
-            <View style={styles.actionRow}>
-              <Button
-                fullWidth
-                label="Guardar"
-                onPress={() => runAction(() => saveRoundAnswers(room.code, answers))}
-                style={styles.rowButton}
-                variant="outline"
-              />
-              <Button
-                fullWidth
-                disabled={!allAnswered || isSubmitting}
-                label="STOP"
-                onPress={() => {
-                  Vibration.vibrate(100);
-                  void runAction(() => finishRound(room.code, false, answers));
-                }}
-                style={[styles.rowButton, styles.stopAction]}
-                variant="accent"
-              />
-            </View>
-          </Card>
-        )}
-
-        {(room.status === 'results' || room.status === 'finished') && room.round?.result && (
-          <ResultsSection
-            castVote={(challengeId, vote) =>
-              runAction(() => castAnswerVote(room.code, challengeId, vote))
-            }
-            finishCurrentGame={() => runAction(() => finishGame(room.code))}
-            isHost={isHost}
-            isSubmitting={isSubmitting}
-            prepareNext={() => runAction(() => prepareNextRound(room.code))}
-            room={room}
-            sessionId={session.id}
-            standings={standings}
-            startCurrentRematch={() => runAction(() => startRematch(room.code))}
-          />
-        )}
-
-        {pendingChallenges && pendingChallenges.length > 0 && (
-          <Text style={[styles.footerHint, { color: colors.muted }]}>
-            Existem respostas duvidosas por votar antes da proxima ronda.
-          </Text>
-        )}
-      </ScrollView>
+          {pendingChallenges && pendingChallenges.length > 0 && (
+            <Text style={[styles.footerHint, { color: colors.muted }]}>
+              {t('results.votingPending')}
+            </Text>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -662,7 +564,11 @@ function StateHero({
           {getStatusLabel(room.status, t)}
         </Text>
         <Badge
-          label={connectionStatus === 'connected' ? t('common.online') : connectionStatus}
+          label={
+            connectionStatus === 'connected'
+              ? t('common.online')
+              : t('connection.reconnectingTitle')
+          }
           tone={connectionStatus === 'connected' ? 'success' : 'muted'}
         />
       </View>
@@ -806,10 +712,17 @@ function LobbySection({
           <View style={styles.actionRow}>
             <Button
               fullWidth
-              disabled={isSubmitting || !validSettings}
+              disabled={
+                isSubmitting ||
+                !validSettings ||
+                settingsChanged ||
+                lobbySaveState === 'saving' ||
+                lobbySaveState === 'error'
+              }
               label={t('lobby.prepareFirst')}
               onPress={startGame}
               style={styles.rowButton}
+              variant="accent"
             />
           </View>
         )}
@@ -970,9 +883,6 @@ function ResultsSection({
   const { t } = useLanguage();
   const result = room.round?.result;
   if (!result || !room.round) return null;
-  const pendingChallenges = Object.values(result.challenges).filter(
-    (challenge) => challenge.status === 'pending',
-  );
   const isFinished = room.status === 'finished';
   const nextCommanderId =
     room.round.number < room.settings.roundsToPlay
@@ -982,6 +892,7 @@ function ResultsSection({
 
   return (
     <>
+      {!isFinished && <RoundRecap room={room} />}
       <Card
         subtitle={
           result.stoppedBy
@@ -992,7 +903,13 @@ function ResultsSection({
               })
             : t('results.timedOut')
         }
-        title={isFinished ? t('final.ranking') : t('results.title')}
+        title={
+          isFinished
+            ? t('final.ranking')
+            : result.votingComplete
+              ? t('results.generalRanking')
+              : t('results.provisional')
+        }
       >
         {standings.map(({ player, total }, index) => (
           <View key={player.id} style={[styles.standingRow, { borderBottomColor: colors.border }]}>
@@ -1006,15 +923,16 @@ function ResultsSection({
         ))}
       </Card>
 
-      {pendingChallenges.length > 0 && (
+      {Object.keys(result.challenges).length > 0 && (
         <Card subtitle={t('results.roomDecides')} title={t('challenge.pending')}>
-          {pendingChallenges.map((challenge) => (
-            <ChallengeCard
+          {Object.values(result.challenges).map((challenge) => (
+            <AnswerVoteCard
               challenge={challenge}
               key={challenge.id}
               onVote={(vote) => castVote(challenge.id, vote)}
-              playerId={sessionId}
-              voterCount={room.players.length - challenge.playerIds.length}
+              sessionId={sessionId}
+              players={room.players}
+              busy={isSubmitting}
             />
           ))}
         </Card>
@@ -1101,56 +1019,16 @@ function ResultsSection({
             variant="accent"
           />
         )}
+        {isFinished && !isHost && (
+          <Text style={[styles.waitingText, { color: colors.muted }]}>
+            {t('final.hostDecides')}
+          </Text>
+        )}
+        {isFinished && (
+          <Button label={t('common.home')} onPress={() => router.replace('/')} variant="ghost" />
+        )}
       </Card>
     </>
-  );
-}
-
-function ChallengeCard({
-  challenge,
-  onVote,
-  playerId,
-  voterCount,
-}: {
-  challenge: AnswerChallenge;
-  onVote: (vote: AnswerVote) => void;
-  playerId: string;
-  voterCount: number;
-}) {
-  const { colors } = useTheme();
-  const { t } = useLanguage();
-  const canVote = challenge.status === 'pending' && !challenge.playerIds.includes(playerId);
-
-  return (
-    <View style={[styles.challengeCard, { borderColor: colors.border }]}>
-      <Text style={[styles.challengeTitle, { color: colors.muted }]}>{challenge.category}</Text>
-      <Text style={[styles.challengeAnswer, { color: colors.petroleum }]}>{challenge.answer}</Text>
-      <Text style={[styles.challengeStatus, { color: colors.muted }]}>
-        {t('challenge.votes', {
-          authors: challenge.playerIds.length,
-          current: Object.keys(challenge.votes).length,
-          total: voterCount,
-        })}
-      </Text>
-      {canVote && (
-        <View style={styles.actionRow}>
-          <Button
-            fullWidth
-            label={t('challenge.accept')}
-            onPress={() => onVote('approve')}
-            style={styles.rowButton}
-            variant="outline"
-          />
-          <Button
-            fullWidth
-            label={t('challenge.reject')}
-            onPress={() => onVote('reject')}
-            style={styles.rowButton}
-            variant="danger"
-          />
-        </View>
-      )}
-    </View>
   );
 }
 
@@ -1271,6 +1149,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   content: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
     gap: 12,
     padding: spacing.screen,
     paddingBottom: 40,

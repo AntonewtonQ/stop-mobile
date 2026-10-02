@@ -7,10 +7,12 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import type { Ref } from 'react';
 
 import { useTheme } from '@/theme/ThemeProvider';
 
 type InputProps = TextInputProps & {
+  ref?: Ref<TextInput>;
   containerStyle?: StyleProp<ViewStyle>;
   label?: string;
 };
@@ -22,6 +24,7 @@ export function Input({ containerStyle, label, style, ...props }: InputProps) {
     <View style={[styles.wrapper, containerStyle]}>
       {label && <Text style={[styles.label, { color: colors.petroleum }]}>{label}</Text>}
       <TextInput
+        accessibilityLabel={label}
         placeholderTextColor={colors.muted}
         style={[
           styles.input,

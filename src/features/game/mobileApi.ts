@@ -29,20 +29,36 @@ function makeUrl(path: string) {
   return `${baseUrl}${path}`;
 }
 
-async function requestRoom(path: string, init?: RequestInit) {
-  const response = await fetch(makeUrl(path), {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
-  });
-  const data = (await response.json()) as { room?: Room; error?: string };
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, 12_000);
+  init?.signal?.addEventListener('abort', abort, { once: true });
+  if (init?.signal?.aborted) controller.abort();
 
-  if (!response.ok || !data.room) {
-    throw new GameApiError(data.error ?? DEFAULT_ERROR, response.status);
+  try {
+    const response = await fetch(makeUrl(path), {
+      ...init,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...init?.headers },
+    });
+    const data = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+    if (!response.ok || !data) {
+      throw new GameApiError(data?.error ?? DEFAULT_ERROR, response.status);
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof GameApiError || init?.signal?.aborted) throw error;
+    throw new GameApiError(DEFAULT_ERROR, 0);
+  } finally {
+    clearTimeout(timeout);
+    init?.signal?.removeEventListener('abort', abort);
   }
+}
 
+async function requestRoom(path: string, init?: RequestInit) {
+  const data = await request<{ room?: Room }>(path, init);
+  if (!data.room) throw new GameApiError(DEFAULT_ERROR, 502);
   return data.room;
 }
 
@@ -68,29 +84,23 @@ async function sendAction(code: string, type: string, payload: Record<string, un
   });
 }
 
-export async function readRoom(code: string) {
+export async function readRoom(code: string, signal?: AbortSignal) {
   const normalizedCode = normalizeRoomCode(code);
   const session = await readPlayerSession(normalizedCode);
-  const response = await fetch(makeUrl(`/api/rooms/${normalizedCode}`), {
-    headers: session
-      ? {
-          'x-stop-player-id': session.id,
-          'x-stop-player-token': session.token,
-        }
-      : undefined,
-  });
-
-  if (response.status === 404) return null;
-
-  const data = (await response.json()) as { room?: Room; error?: string };
-  if (!response.ok || !data.room) {
-    throw new GameApiError(
-      data.error ?? 'Nao conseguimos carregar a sala. Tenta novamente.',
-      response.status,
-    );
+  try {
+    return await requestRoom(`/api/rooms/${normalizedCode}`, {
+      signal,
+      headers: session
+        ? {
+            'x-stop-player-id': session.id,
+            'x-stop-player-token': session.token,
+          }
+        : undefined,
+    });
+  } catch (error) {
+    if (error instanceof GameApiError && error.status === 404) return null;
+    throw error;
   }
-
-  return data.room;
 }
 
 export function createRoom(code: string, host: PlayerSession) {
@@ -146,12 +156,16 @@ export function startRematch(code: string) {
   return sendAction(code, 'rematch');
 }
 
-export async function syncPlayerPresence(code: string, online = true) {
-  return requestRoom(`/api/rooms/${normalizeRoomCode(code)}/presence`, {
-    method: 'POST',
-    body: JSON.stringify({
-      actor: await getActor(code),
-      online,
-    }),
-  });
+export async function syncPlayerPresence(code: string, online = true, signal?: AbortSignal) {
+  return request<{ ok: boolean; changed: boolean }>(
+    `/api/rooms/${normalizeRoomCode(code)}/presence?light=1`,
+    {
+      method: 'POST',
+      signal,
+      body: JSON.stringify({
+        actor: await getActor(code),
+        online,
+      }),
+    },
+  );
 }

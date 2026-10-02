@@ -1,17 +1,22 @@
 {
   "expo": {
-    "name": "stop-mobile",
+    "name": "jogastop",
     "slug": "stop-mobile",
     "version": "1.0.0",
-    "scheme": "stop-mobile",
+    "scheme": ["jogastop", "stop-mobile"],
     "orientation": "portrait",
     "icon": "./assets/brand/jogastop-mobile-mark.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "ao.jogastop.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "ao.jogastop.mobile",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#062F40",
         "foregroundImage": "./assets/brand/jogastop-mobile-mark.png"
@@ -24,13 +29,27 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": false
+        }
+      ],
       "expo-font",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0F2D3D",
+          "image": "./assets/brand/jogastop-mobile-mark.png",
+          "imageWidth": 160
+        }
+      ],
       [
         "expo-audio",
         {
-          "recordAudioAndroid": false
+          "recordAudioAndroid": false,
+          "microphonePermission": false
         }
       ],
       "expo-asset"

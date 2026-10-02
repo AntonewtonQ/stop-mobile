@@ -11,6 +11,7 @@ Este projecto replica a experiencia do web em `/home/aquima/antonewton/stop`, co
 - Expo Router
 - TypeScript
 - AsyncStorage para preferencias locais
+- SecureStore para sessoes nativas e expo-crypto para novos identificadores/tokens
 - expo-audio para sons do jogo
 - lucide-react-native para iconografia
 - React Query como base para estado remoto
@@ -64,6 +65,8 @@ npm run web
 ```bash
 npm run typecheck
 npm run lint
+npm test
+npm run export:check
 npm run format
 ```
 
@@ -128,13 +131,80 @@ Ela e usada no componente `Logo`, no icone principal do Expo e no favicon web.
 - Indicacao de anfitriao, comandante e estado da sala.
 - Convite por WhatsApp e partilha nativa.
 - Avatares conceituais.
-- Onboarding inicial persistido.
+- Entrada directa, com perfil e tema opcionais e recuperacao da ultima sala.
 - Temas persistidos.
 - Idiomas portugues, ingles e frances.
 - Sons de inicio da ronda, ultimos segundos e STOP.
 - Ronda com autosave das respostas.
 - Resultados, votacao de respostas duvidosas e ranking.
 - Tela de privacidade baseada no conteudo do web.
+
+## Alinhamento mobile com o web
+
+- Convites abrem a entrada da sala mesmo sem uma sessao guardada.
+- Durante a rodada, a letra e o relogio ficam no topo e o STOP fica fixo no fundo.
+- O teclado permite avancar entre categorias; o rascunho nao e substituido pelo polling.
+- Cada rodada tem o seu proprio rascunho. Falhas de autosave sao visiveis e repetidas.
+- O progresso dos jogadores, quem parou, quem completou e os votos aparecem na sala.
+- O mobile continua a usar as regras e a pontuacao calculadas pela API web.
+- As accoes aplicam a sala devolvida pela API imediatamente, sem um GET adicional.
+- Leituras nao se sobrepoem. Respostas antigas nao desfazem accoes mais recentes.
+- Polling e presenca param em segundo plano e quando se sai do ecra da sala.
+- A presenca usa `/presence?light=1`; abrir o teclado ou partilhar um convite nao envia uma saida imediata.
+
+Ainda nao existe paridade total: o ranking semanal publico, o cartao PNG final e a abertura
+automatica de links HTTPS no app (Universal Links/App Links) precisam de trabalho proprio.
+O esquema `jogastop://sala/CODIGO` ja usa a entrada da sala. Os convites HTTPS continuam
+a funcionar na versao web.
+
+## Sessao Segura
+
+Em Android/iOS, a sessao completa, incluindo o token de reconexao, fica no
+`expo-secure-store`. O AsyncStorage guarda preferencias e o codigo da ultima sala,
+sem novas copias do token. No Expo web, a sessao continua no armazenamento do navegador.
+
+No primeiro acesso ao armazenamento, as sessoes antigas validas sao migradas.
+A copia antiga so e removida apos a gravacao segura; uma falha permite repetir a
+migracao e nunca provoca fallback para texto simples. Sessoes seguras existentes
+prevalecem sobre copias antigas. Registos antigos invalidos sao preservados para
+evitar perda de dados; nao sao usados para autenticar.
+
+Leituras e escritas sao serializadas. A sessao e guardada antes de criar/entrar
+numa sala na API, evitando perder a credencial se a gravacao local falhar apos a
+entrada. Os tokens existentes nao sao alterados; novos tokens usam `expo-crypto`.
+
+O iOS usa `WHEN_UNLOCKED_THIS_DEVICE_ONLY`, sem pedir biometria; o plugin exclui
+SecureStore do backup Android. O Keychain iOS pode persistir apos desinstalacao.
+Sessoes nao sao garantidas apos troca de dispositivo ou restauro de backup.
+
+E necessario um novo build nativo para incluir `expo-crypto` e a configuracao do
+plugin. O bundle JavaScript/export nao substitui esse build nem valida Keychain/Keystore.
+
+## Testes Nas Lojas
+
+O nome apresentado e `jogastop`. Os identificadores Android e iOS estao configurados
+como `ao.jogastop.mobile`; confirma que correspondem aos registos das tuas contas
+antes da primeira submissao. O projecto EAS e o slug existentes foram mantidos.
+
+O perfil `preview` gera APK para instalacao directa. Para Google Play (teste interno)
+e TestFlight, o perfil `store-test` herda as URLs de producao e a versao automatica:
+
+```bash
+npx eas-cli build --platform android --profile store-test
+npx eas-cli build --platform ios --profile store-test
+```
+
+Depois de validar os artefactos, submete o build escolhido pelo seu ID:
+
+```bash
+npx eas-cli submit --platform android --profile production --id BUILD_ID
+npx eas-cli submit --platform ios --profile production --id BUILD_ID
+```
+
+Selecciona o canal de teste interno no Google Play e configura os testers no
+App Store Connect. Estes comandos requerem as tuas contas, credenciais de assinatura
+e os registos nas lojas. O repositorio nao executa publicacoes automaticamente.
+Consulta o [guia de testes mobile](docs/mobile-testing.md) antes de distribuir.
 
 ## Notas
 

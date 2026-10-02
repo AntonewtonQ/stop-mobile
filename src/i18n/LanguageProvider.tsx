@@ -11,6 +11,7 @@ type LanguageContextValue = {
   locale: Locale;
   setLocale: (locale: Locale) => Promise<void>;
   t: (key: TranslationKey, params?: TranslationParams) => string;
+  category: (name: string) => string;
 };
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
@@ -51,6 +52,7 @@ export function LanguageProvider({ children }: PropsWithChildren) {
         await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
       },
       t: (key, params) => interpolate(dictionaries[locale][key] ?? dictionaries.pt[key], params),
+      category: (name) => dictionaries[locale][`category.${name}` as TranslationKey] ?? name,
     }),
     [locale],
   );

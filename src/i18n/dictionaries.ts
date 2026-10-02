@@ -1,4 +1,11 @@
 export const pt = {
+  'entry.customize': 'Personalizar perfil e tema',
+  'round.tooShort': 'Uma letra ou letras repetidas não pontuam.',
+  'round.save.saved': 'Respostas guardadas',
+  'round.save.saving': 'A guardar...',
+  'round.save.pending': 'Alterações por guardar',
+  'round.save.error': 'Falha ao guardar. A tentar novamente...',
+  'challenge.voters': 'Votos registados',
   'language.label': 'Idioma',
   'language.pt': 'Português',
   'language.en': 'English',
@@ -330,6 +337,8 @@ export const pt = {
   'final.shareFailed': 'Não conseguimos gerar a imagem.',
   'error.connection': 'A ligação à sala falhou. Tenta novamente.',
   'error.session': 'A tua sessão expirou. Volta a entrar na sala.',
+  'error.sessionStorage':
+    'Não conseguimos guardar ou recuperar a sessão em segurança. Desbloqueia o dispositivo e tenta novamente.',
   'error.load': 'Não conseguimos carregar a sala. Tenta novamente.',
   'error.codeInUse': 'Este código já pertence a outra sala. Tenta novamente.',
   'error.roomNotFound': 'Não encontramos esta sala.',
@@ -349,6 +358,13 @@ export type Dictionary = Record<TranslationKey, string>;
 
 export const en: Dictionary = {
   ...pt,
+  'entry.customize': 'Customize profile and theme',
+  'round.tooShort': 'One letter or repeated letters do not score.',
+  'round.save.saved': 'Answers saved',
+  'round.save.saving': 'Saving...',
+  'round.save.pending': 'Unsaved changes',
+  'round.save.error': 'Could not save. Retrying...',
+  'challenge.voters': 'Recorded votes',
   'language.label': 'Language',
   'common.room': 'Room',
   'common.home': 'Back to home',
@@ -672,6 +688,8 @@ export const en: Dictionary = {
   'final.shareFailed': 'We could not generate the image.',
   'error.connection': 'The room connection failed. Try again.',
   'error.session': 'Your session expired. Join the room again.',
+  'error.sessionStorage':
+    'We could not safely save or recover your session. Unlock your device and try again.',
   'error.load': 'We could not load the room. Try again.',
   'error.codeInUse': 'This code belongs to another room. Try again.',
   'error.roomNotFound': 'We could not find this room.',
@@ -688,6 +706,13 @@ export const en: Dictionary = {
 
 export const fr: Dictionary = {
   ...en,
+  'entry.customize': 'Personnaliser le profil et le thème',
+  'round.tooShort': 'Une lettre ou des lettres répétées ne rapportent aucun point.',
+  'round.save.saved': 'Réponses enregistrées',
+  'round.save.saving': 'Enregistrement...',
+  'round.save.pending': 'Modifications à enregistrer',
+  'round.save.error': 'Échec. Nouvelle tentative...',
+  'challenge.voters': 'Votes enregistrés',
   'language.label': 'Langue',
   'common.room': 'Salle',
   'common.home': "Retour à l'accueil",
@@ -1017,6 +1042,8 @@ export const fr: Dictionary = {
   'final.shareFailed': "Impossible de générer l'image.",
   'error.connection': 'La connexion à la salle a échoué. Réessaie.',
   'error.session': 'Ta session a expiré. Rejoins la salle.',
+  'error.sessionStorage':
+    'Impossible de sauvegarder ou récupérer ta session en toute sécurité. Déverrouille ton appareil et réessaie.',
   'error.load': 'Impossible de charger la salle. Réessaie.',
   'error.codeInUse': 'Ce code appartient déjà à une salle. Réessaie.',
   'error.roomNotFound': 'Cette salle est introuvable.',

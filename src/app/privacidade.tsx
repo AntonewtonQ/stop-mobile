@@ -1,20 +1,26 @@
 import { router } from 'expo-router';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Logo } from '@/components/brand/Logo';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { privacyPolicies } from '@/features/privacy/privacy';
+import { PRIVACY_POLICY_URL, privacyPolicies } from '@/features/privacy/privacy';
 import { useLanguage } from '@/i18n/LanguageProvider';
 import { useTheme } from '@/theme/ThemeProvider';
-
-const GOOGLE_PRIVACY_URL = 'https://policies.google.com/privacy';
 
 export default function PrivacyScreen() {
   const { locale } = useLanguage();
   const { colors } = useTheme();
   const copy = privacyPolicies[locale];
+
+  async function openLink(url: string) {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(copy.badge, copy.openLinkError);
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -69,13 +75,26 @@ export default function PrivacyScreen() {
                 ))}
               </View>
             )}
+            {section.links && (
+              <View style={styles.itemList}>
+                {section.links.map((link) => (
+                  <Button
+                    fullWidth
+                    key={link.href}
+                    label={link.label}
+                    onPress={() => void openLink(link.href)}
+                    variant="outline"
+                  />
+                ))}
+              </View>
+            )}
           </Card>
         ))}
 
         <Button
           fullWidth
-          label={copy.googlePrivacy}
-          onPress={() => void Linking.openURL(GOOGLE_PRIVACY_URL)}
+          label={copy.publicPolicy}
+          onPress={() => void openLink(PRIVACY_POLICY_URL)}
           variant="outline"
         />
 

@@ -1,11 +1,10 @@
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,11 +13,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Logo } from '@/components/brand/Logo';
-import { AvatarPicker } from '@/components/game/AvatarPicker';
+import { ProfileOptions } from '@/components/game/ProfileOptions';
 import { LanguageSwitcher } from '@/components/game/LanguageSwitcher';
 import { SoundToggle } from '@/components/game/SoundToggle';
-import { ThemePicker } from '@/components/game/ThemePicker';
-import { Onboarding } from '@/components/onboarding/Onboarding';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -29,19 +26,14 @@ import {
   makeRoomCode,
   normalizeRoomCode,
   readLastPlayerSession,
+  readPlayerSession,
   savePlayerSession,
+  SessionStorageError,
 } from '@/features/game/mobileStorage';
-import {
-  DEFAULT_PROFILE_COLOR,
-  PROFILE_COLORS,
-  type ProfileColor,
-} from '@/features/game/profile-colors';
+import { DEFAULT_PROFILE_COLOR, type ProfileColor } from '@/features/game/profile-colors';
 import type { PlayerSession } from '@/features/game/types';
 import { useLanguage } from '@/i18n/LanguageProvider';
-import { appStorage } from '@/storage/appStorage';
 import { useTheme } from '@/theme/ThemeProvider';
-
-const ONBOARDING_STORAGE_KEY = 'jogastop:onboarding:v1';
 
 export default function HomeScreen() {
   const { t } = useLanguage();
@@ -52,32 +44,38 @@ export default function HomeScreen() {
   const [profileColor, setProfileColor] = useState<ProfileColor>(DEFAULT_PROFILE_COLOR);
   const [recentSession, setRecentSession] = useState<PlayerSession | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const pendingRef = useRef(false);
+  const restoredProfile = useRef(false);
   const [pendingAction, setPendingAction] = useState<'creating' | 'joining' | null>(null);
   const normalizedRoomCode = useMemo(() => normalizeRoomCode(roomCode), [roomCode]);
 
-  useEffect(() => {
-    let mounted = true;
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
 
-    Promise.all([readLastPlayerSession(), appStorage.getItem(ONBOARDING_STORAGE_KEY)])
-      .then(([lastSession, onboardingSeen]) => {
-        if (!mounted) return;
-        setRecentSession(lastSession);
-        setShowOnboarding(onboardingSeen !== 'done');
-      })
-      .finally(() => {
-        if (mounted) setIsBootstrapping(false);
-      });
+      readLastPlayerSession()
+        .then((lastSession) => {
+          if (!mounted) return;
+          setRecentSession(lastSession);
+          if (lastSession && !restoredProfile.current) {
+            setPlayerName(lastSession.name);
+            setAvatarId(lastSession.avatarId);
+            setProfileColor(lastSession.color as ProfileColor);
+          }
+          restoredProfile.current = true;
+        })
+        .catch(() => {
+          if (mounted) Alert.alert(t('error.generic'), t('error.sessionStorage'));
+        })
+        .finally(() => {
+          if (mounted) setIsBootstrapping(false);
+        });
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  async function finishOnboarding() {
-    setShowOnboarding(false);
-    await appStorage.setItem(ONBOARDING_STORAGE_KEY, 'done');
-  }
+      return () => {
+        mounted = false;
+      };
+    }, [t]),
+  );
 
   function validateName() {
     const name = playerName.trim();
@@ -88,29 +86,29 @@ export default function HomeScreen() {
   }
 
   async function handleCreateRoom() {
-    if (pendingAction) return;
+    if (pendingRef.current) return;
     const name = validateName();
     if (!name) return;
 
-    const code = makeRoomCode();
-    const session = createPlayerSession(name, code, avatarId, profileColor);
     setPendingAction('creating');
+    pendingRef.current = true;
 
     try {
-      await createRoom(code, session);
+      const code = makeRoomCode();
+      const session = createPlayerSession(name, code, avatarId, profileColor);
       await savePlayerSession(session);
+      await createRoom(code, session);
       router.push({ pathname: '/sala/[code]', params: { code } });
     } catch (error) {
-      Alert.alert(t('entry.createFailed'), getErrorMessage(error));
+      Alert.alert(t('entry.createFailed'), getErrorMessage(error, t('error.sessionStorage')));
     } finally {
+      pendingRef.current = false;
       setPendingAction(null);
     }
   }
 
   async function handleJoinRoom() {
-    if (pendingAction) return;
-    const name = validateName();
-    if (!name) return;
+    if (pendingRef.current) return;
 
     if (normalizedRoomCode.length < 4) {
       Alert.alert(t('entry.invalidCode'), t('entry.invalidCodeFeedback'));
@@ -118,6 +116,7 @@ export default function HomeScreen() {
     }
 
     setPendingAction('joining');
+    pendingRef.current = true;
     try {
       const room = await readRoom(normalizedRoomCode);
       if (!room) {
@@ -125,18 +124,26 @@ export default function HomeScreen() {
         return;
       }
 
+      const existingSession = await readPlayerSession(normalizedRoomCode);
+      if (existingSession && room.players.some((player) => player.id === existingSession.id)) {
+        router.push({ pathname: '/sala/[code]', params: { code: normalizedRoomCode } });
+        return;
+      }
       if (room.status !== 'lobby') {
         Alert.alert(t('entry.gameStarted'), t('entry.gameStartedFeedback'));
         return;
       }
 
+      const name = validateName();
+      if (!name) return;
       const session = createPlayerSession(name, normalizedRoomCode, avatarId, profileColor);
-      await joinRoom(normalizedRoomCode, session);
       await savePlayerSession(session);
+      await joinRoom(normalizedRoomCode, session);
       router.push({ pathname: '/sala/[code]', params: { code: normalizedRoomCode } });
     } catch (error) {
-      Alert.alert(t('entry.joinFailed'), getErrorMessage(error));
+      Alert.alert(t('entry.joinFailed'), getErrorMessage(error, t('error.sessionStorage')));
     } finally {
+      pendingRef.current = false;
       setPendingAction(null);
     }
   }
@@ -148,10 +155,6 @@ export default function HomeScreen() {
         <ActivityIndicator color={colors.amber} />
       </SafeAreaView>
     );
-  }
-
-  if (showOnboarding) {
-    return <Onboarding onFinish={finishOnboarding} />;
   }
 
   return (
@@ -200,33 +203,17 @@ export default function HomeScreen() {
               value={playerName}
             />
 
-            <AvatarPicker color={profileColor} onChange={setAvatarId} value={avatarId} />
-
-            <Text style={[styles.label, { color: colors.petroleum }]}>
-              {t('profileColor.choose')}
-            </Text>
-            <View style={styles.colorGrid}>
-              {PROFILE_COLORS.map((color) => (
-                <Pressable
-                  accessibilityRole="button"
-                  key={color.id}
-                  onPress={() => setProfileColor(color.value)}
-                  style={[
-                    styles.colorOption,
-                    {
-                      backgroundColor: color.value,
-                      borderColor: profileColor === color.value ? colors.petroleum : colors.surface,
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-
-            <ThemePicker compact />
+            <ProfileOptions
+              avatarId={avatarId}
+              color={profileColor}
+              onAvatarChange={setAvatarId}
+              onColorChange={setProfileColor}
+            />
 
             <Button
               fullWidth
               label={t('entry.createRoom')}
+              variant="accent"
               loading={pendingAction === 'creating'}
               onPress={handleCreateRoom}
               style={styles.topAction}
@@ -256,6 +243,8 @@ export default function HomeScreen() {
             <View style={styles.joinRow}>
               <Input
                 autoCapitalize="characters"
+                autoCorrect={false}
+                accessibilityLabel={t('entry.roomCode')}
                 containerStyle={styles.joinInput}
                 editable={!pendingAction}
                 maxLength={8}
@@ -269,7 +258,7 @@ export default function HomeScreen() {
                 loading={pendingAction === 'joining'}
                 onPress={handleJoinRoom}
                 style={styles.joinButton}
-                variant="accent"
+                variant="primary"
               />
             </View>
             <Button
@@ -286,7 +275,8 @@ export default function HomeScreen() {
   );
 }
 
-function getErrorMessage(error: unknown) {
+function getErrorMessage(error: unknown, sessionMessage: string) {
+  if (error instanceof SessionStorageError) return sessionMessage;
   return error instanceof Error ? error.message : 'Tenta novamente.';
 }
 
@@ -314,6 +304,9 @@ const styles = StyleSheet.create({
     width: 28,
   },
   content: {
+    width: '100%',
+    maxWidth: 620,
+    alignSelf: 'center',
     padding: 18,
     paddingBottom: 30,
   },
@@ -340,6 +333,8 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
     justifyContent: 'space-between',
     marginBottom: 24,
   },

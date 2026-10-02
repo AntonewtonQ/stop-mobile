@@ -48,15 +48,17 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       disabled={isDisabled}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.button,
         {
           alignSelf: fullWidth ? 'stretch' : undefined,
           backgroundColor,
           borderColor,
-          opacity: isDisabled ? 0.48 : 1,
+          opacity: isDisabled ? 0.48 : pressed ? 0.8 : 1,
         },
         variant === 'ghost' && styles.ghost,
         style,
@@ -65,11 +67,9 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={textColor} />
       ) : (
-        <>
-          {Icon && <Icon color={textColor} size={17} strokeWidth={2.8} />}
-          <Text style={[styles.text, { color: textColor }]}>{label}</Text>
-        </>
+        Icon && <Icon color={textColor} size={17} strokeWidth={2.8} />
       )}
+      <Text style={[styles.text, { color: textColor }]}>{label}</Text>
     </Pressable>
   );
 }
